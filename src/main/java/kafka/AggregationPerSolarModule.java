@@ -24,4 +24,13 @@ public class AggregationPerSolarModule {
                 .setScale(1, RoundingMode.HALF_UP).doubleValue();
         return this;
     }
+
+    public AggregationPerSolarModule of(AggregationPerSolarModule aggModule) {
+        moduleName = aggModule.getModuleName();
+        panelName = aggModule.getPanelName();
+        count = aggModule.getCount();
+        sumPower = aggModule.getSumPower();
+        avgPower = aggModule.getAvgPower();
+        return this;
+    }
 }
