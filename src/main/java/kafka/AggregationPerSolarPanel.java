@@ -13,8 +13,8 @@ public class AggregationPerSolarPanel {
     private double sumPower;
     private double avgPower;
 
-    public AggregationPerSolarPanel updateFrom(String panelName, AggregationPerSolarModule data) {
-        this.panelName = panelName;
+    public AggregationPerSolarPanel updateFrom(AggregationPerSolarModule data) {
+        this.panelName = data.getPanelName();
 
         count++;
         sumPower += data.getSumPower();
