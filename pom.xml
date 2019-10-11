@@ -4,8 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>kafka-test</groupId>
-    <artifactId>kafka-test</artifactId>
+    <groupId>org.thingsboard</groupId>
+    <artifactId>kafka-streams-example</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <build>
