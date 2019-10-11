@@ -16,6 +16,11 @@ import java.util.Properties;
 @Slf4j
 public class SolarConsumer {
 
+    private static final String TOPIC = "my-topic";
+
+    /**
+     * Time for windowing
+     */
     private static final Duration duration = Duration.ofSeconds(10);
 
     private static final TimeWindows timeWindows = TimeWindows.of(duration);
@@ -24,20 +29,25 @@ public class SolarConsumer {
 
     private static final StreamsBuilder builder = new StreamsBuilder();
 
+
+    /**
+     * serde Serializer/Deserializer
+     * for custom classes should be custom Serializer/Deserializer
+     */
     private static final Serde<SolarModuleData> solarModuleDataSerde =
             Serdes.serdeFrom(new JsonPojoSerializer<>(), new JsonPojoDeserializer<>(SolarModuleData.class));
 
-    private static final Serde<AggregationPerSolarModule> aggregationPowerPerSolarModuleSerde =
-            Serdes.serdeFrom(new JsonPojoSerializer<>(), new JsonPojoDeserializer<>(AggregationPerSolarModule.class));
+    private static final Serde<SolarModuleAggregator> aggregationPowerPerSolarModuleSerde =
+            Serdes.serdeFrom(new JsonPojoSerializer<>(), new JsonPojoDeserializer<>(SolarModuleAggregator.class));
 
-    private static final Serde<AggregationPerSolarPanel> aggregationPerSolarPanelSerde =
-            Serdes.serdeFrom(new JsonPojoSerializer<>(), new JsonPojoDeserializer<>(AggregationPerSolarPanel.class));
+    private static final Serde<SolarPanelAggregator> aggregationPerSolarPanelSerde =
+            Serdes.serdeFrom(new JsonPojoSerializer<>(), new JsonPojoDeserializer<>(SolarPanelAggregator.class));
 
     private static final Serde<SolarModuleKey> solarModuleKeySerde =
             Serdes.serdeFrom(new JsonPojoSerializer<>(), new JsonPojoDeserializer<>(SolarModuleKey.class));
 
-    private static final Serde<JoinedPanel> joinedPanelSerde =
-            Serdes.serdeFrom(new JsonPojoSerializer<>(), new JsonPojoDeserializer<>(JoinedPanel.class));
+    private static final Serde<SolarPanelAggregatorJoiner> joinedPanelSerde =
+            Serdes.serdeFrom(new JsonPojoSerializer<>(), new JsonPojoDeserializer<>(SolarPanelAggregatorJoiner.class));
 
     private static final Serde<String> stringSerde = Serdes.String();
 
@@ -45,6 +55,9 @@ public class SolarConsumer {
             new TimeWindowedSerializer<>(stringSerde.serializer()),
             new TimeWindowedDeserializer<>(stringSerde.deserializer(), timeWindows.size()));
 
+    /**
+     * 1-sigma
+     */
     private static final double Z = 1;
 
     public static void main(final String[] args) {
@@ -52,57 +65,65 @@ public class SolarConsumer {
     }
 
     private static void runKafkaStreams() {
+
+        //source stream from kafka
         final KStream<SolarModuleKey, SolarModuleData> source = builder
-                .stream("my-topic", Consumed.with(stringSerde, solarModuleDataSerde))
+                .stream(TOPIC, Consumed.with(stringSerde, solarModuleDataSerde))
                 .map((k, v) -> KeyValue.pair(new SolarModuleKey(v.getPanel(), v.getName()), v));
 
         source.foreach((k, v) -> {
             log.info("NEW DATA: [{}|{}]: {}", k.getPanelName(), k.getModuleName(), v.getPower());
         });
 
-        final KStream<Windowed<SolarModuleKey>, AggregationPerSolarModule> aggPowerPerSolarModuleStream =
+        //calculating sum power and average power for modules
+        final KStream<Windowed<SolarModuleKey>, SolarModuleAggregator> aggPowerPerSolarModuleStream =
                 source
                         .groupByKey(Grouped.with(solarModuleKeySerde, solarModuleDataSerde))
                         .windowedBy(timeWindows)
-                        .aggregate(AggregationPerSolarModule::new,
+                        .aggregate(SolarModuleAggregator::new,
                                 (modelKey, value, aggregation) -> aggregation.updateFrom(value),
                                 Materialized.with(solarModuleKeySerde, aggregationPowerPerSolarModuleSerde))
                         .suppress(Suppressed.untilTimeLimit(duration, Suppressed.BufferConfig.unbounded()))
                         .toStream();
 
         aggPowerPerSolarModuleStream.foreach(
-                (k, v) -> log.info("PerSolarModule: [{}|{}|{}]: {}:{}", k.window().endTime().getEpochSecond(), k.key().getPanelName(), k.key().getModuleName(), v.getSumPower(), v.getCount()));
+                (k, v) -> log.info("PerSolarModule: [{}|{}|{}]: {}:{}",
+                        k.window().endTime().getEpochSecond(), k.key().getPanelName(), k.key().getModuleName(), v.getSumPower(), v.getCount()));
 
-
-        final KStream<Windowed<String>, AggregationPerSolarPanel> aggPowerPerSolarPanelStream =
+        //calculating sum power and average power for panels
+        final KStream<Windowed<String>, SolarPanelAggregator> aggPowerPerSolarPanelStream =
                 aggPowerPerSolarModuleStream
                         .map((k, v) -> KeyValue.pair(new Windowed<>(k.key().getPanelName(), k.window()), v))
                         .groupByKey(Grouped.with(windowedStringSerde, aggregationPowerPerSolarModuleSerde))
-                        .aggregate(AggregationPerSolarPanel::new,
+                        .aggregate(SolarPanelAggregator::new,
                                 (panelKey, value, aggregation) -> aggregation.updateFrom(value),
                                 Materialized.with(windowedStringSerde, aggregationPerSolarPanelSerde))
                         .suppress(Suppressed.untilTimeLimit(duration, Suppressed.BufferConfig.unbounded()))
                         .toStream();
         aggPowerPerSolarPanelStream.foreach(
-                (k, v) -> log.info("PerSolarPanel: [{}|{}]: {}:{}", k.window().endTime().getEpochSecond(), k.key(), v.getSumPower(), v.getCount()));
+                (k, v) -> log.info("PerSolarPanel: [{}|{}]: {}:{}",
+                        k.window().endTime().getEpochSecond(), k.key(), v.getSumPower(), v.getCount()));
 
 
         //if used for join more than once, the exception "TopologyException: Invalid topology:" will be thrown
-        final KStream<Windowed<String>, AggregationPerSolarModule> aggPowerPerSolarModuleForJoinStream =
+        final KStream<Windowed<String>, SolarModuleAggregator> aggPowerPerSolarModuleForJoinStream =
                 aggPowerPerSolarModuleStream
                         .map((k, v) -> KeyValue.pair(new Windowed<>(k.key().getPanelName(), k.window()), v));
 
-        final KStream<Windowed<String>, JoinedPanel> joinedAggPanelWithAggModule =
+        //joining aggregated panels with aggregated modules
+        //need for calculating sumSquare and deviance
+        final KStream<Windowed<String>, SolarPanelAggregatorJoiner> joinedAggPanelWithAggModule =
                 aggPowerPerSolarPanelStream.join(
                         aggPowerPerSolarModuleForJoinStream,
-                        JoinedPanel::new, joinWindows,
+                        SolarPanelAggregatorJoiner::new, joinWindows,
                         Joined.with(windowedStringSerde, aggregationPerSolarPanelSerde, aggregationPowerPerSolarModuleSerde)
                 );
 
-        final KStream<Windowed<String>, AggregationPerSolarPanel> aggPowerPerSolarPanelFinalStream =
+        //calculating sumSquare and deviance
+        final KStream<Windowed<String>, SolarPanelAggregator> aggPowerPerSolarPanelFinalStream =
                 joinedAggPanelWithAggModule
                         .groupByKey(Grouped.with(windowedStringSerde, joinedPanelSerde))
-                        .aggregate(AggregationPerSolarPanel::new,
+                        .aggregate(SolarPanelAggregator::new,
                                 (key, value, aggregation) -> aggregation.updateFrom(value),
                                 Materialized.with(windowedStringSerde, aggregationPerSolarPanelSerde))
                         .suppress(Suppressed.untilTimeLimit(duration, Suppressed.BufferConfig.unbounded()))
@@ -112,22 +133,23 @@ public class SolarConsumer {
                 (k, v) -> log.info("PerSolarPanelFinal: [{}|{}]: power:{} count:{} squareSum:{} variance:{} deviance:{}",
                         k.window().endTime().getEpochSecond(), k.key(), v.getSumPower(), v.getCount(), v.getSquaresSum(), v.getVariance(), v.getDeviance()));
 
-
-        final KStream<Windowed<String>, JoinedModule> joinedAggModuleWithAggPanel =
+        //joining aggregated modules with aggregated panels in which calculated sumSquare and deviance
+        //need for check modules with anomaly power value
+        final KStream<Windowed<String>, SolarModuleAggregatorJoiner> joinedAggModuleWithAggPanel =
                 aggPowerPerSolarModuleStream
                         .map((k, v) -> KeyValue.pair(new Windowed<>(k.key().getPanelName(), k.window()), v))
                         .join(
                                 aggPowerPerSolarPanelFinalStream,
-                                JoinedModule::new, joinWindows,
+                                SolarModuleAggregatorJoiner::new, joinWindows,
                                 Joined.with(windowedStringSerde, aggregationPowerPerSolarModuleSerde, aggregationPerSolarPanelSerde)
                         );
 
         joinedAggModuleWithAggPanel.foreach(
                 (k, v) -> {
                     if (isAnomalyModule(v)) {
-                        log.info("ANOMALY: [{}|{}|{}]: sumPower:{} panelAvg:{} deviance:{}",
+                        log.info("ANOMALY module: [{}|{}|{}]: sumPower:{} panelAvg:{} deviance:{}",
                                 k.window().endTime().getEpochSecond(), k.key(), v.getModuleName(),
-                                v.getSumPower(), v.getAggregationPerSolarPanel().getAvgPower(), v.getAggregationPerSolarPanel().getDeviance());
+                                v.getSumPower(), v.getSolarPanelAggregator().getAvgPower(), v.getSolarPanelAggregator().getDeviance());
                     }
                 });
 
@@ -140,8 +162,8 @@ public class SolarConsumer {
         Runtime.getRuntime().addShutdownHook(new Thread(streams::close));
     }
 
-    private static boolean isAnomalyModule(JoinedModule module) {
-        double currentZ = Math.abs(module.getSumPower() - module.getAggregationPerSolarPanel().getAvgPower()) / module.getAggregationPerSolarPanel().getDeviance();
+    private static boolean isAnomalyModule(SolarModuleAggregatorJoiner module) {
+        double currentZ = Math.abs(module.getSumPower() - module.getSolarPanelAggregator().getAvgPower()) / module.getSolarPanelAggregator().getDeviance();
         return currentZ > Z;
     }
 

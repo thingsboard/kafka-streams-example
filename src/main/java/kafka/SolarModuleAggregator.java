@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 
 @Data
-public class AggregationPerSolarModule {
+public class SolarModuleAggregator {
 
     private String moduleName;
     private String panelName;
@@ -14,7 +14,7 @@ public class AggregationPerSolarModule {
     private double sumPower;
     private double avgPower;
 
-    public AggregationPerSolarModule updateFrom(SolarModuleData data) {
+    public SolarModuleAggregator updateFrom(SolarModuleData data) {
         moduleName = data.getName();
         panelName = data.getPanel();
 
@@ -25,7 +25,7 @@ public class AggregationPerSolarModule {
         return this;
     }
 
-    public AggregationPerSolarModule of(AggregationPerSolarModule aggModule) {
+    public SolarModuleAggregator of(SolarModuleAggregator aggModule) {
         moduleName = aggModule.getModuleName();
         panelName = aggModule.getPanelName();
         count = aggModule.getCount();
