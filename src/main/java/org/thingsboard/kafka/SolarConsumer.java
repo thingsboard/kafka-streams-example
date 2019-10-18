@@ -1,4 +1,4 @@
-package kafka;
+package org.thingsboard.kafka;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -9,6 +9,8 @@ import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.*;
+import org.apache.kafka.streams.processor.TopicNameExtractor;
+import org.apache.kafka.streams.processor.internals.StaticTopicNameExtractor;
 
 import java.time.Duration;
 import java.util.Properties;
@@ -16,7 +18,10 @@ import java.util.Properties;
 @Slf4j
 public class SolarConsumer {
 
-    private static final String TOPIC = "my-topic";
+    private static final String TOPIC = "my-topic1";
+
+    private static final TopicNameExtractor<String, SolarModuleAggregatorJoiner> OUT_TOPIC =
+            new StaticTopicNameExtractor<>("topic-output");
 
     /**
      * Time for windowing
@@ -54,6 +59,9 @@ public class SolarConsumer {
     private static final Serde<Windowed<String>> windowedStringSerde = Serdes.serdeFrom(
             new TimeWindowedSerializer<>(stringSerde.serializer()),
             new TimeWindowedDeserializer<>(stringSerde.deserializer(), timeWindows.size()));
+
+    private static final Serde<SolarModuleAggregatorJoiner> solarModuleAggregationSerde =
+            Serdes.serdeFrom(new JsonPojoSerializer<>(), new JsonPojoDeserializer<>(SolarModuleAggregatorJoiner.class));
 
     /**
      * 1-sigma
@@ -152,6 +160,11 @@ public class SolarConsumer {
                                 v.getSumPower(), v.getSolarPanelAggregator().getAvgPower(), v.getSolarPanelAggregator().getDeviance());
                     }
                 });
+
+        joinedAggModuleWithAggPanel
+                .filter((k, v) -> isAnomalyModule(v))
+                .map((k, v) -> KeyValue.pair(k.key(), v))
+                .to(OUT_TOPIC, Produced.valueSerde(solarModuleAggregationSerde));
 
 
         log.info("STARTING");

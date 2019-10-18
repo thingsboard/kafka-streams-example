@@ -1,19 +1,15 @@
-package kafka;
+package org.thingsboard.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.errors.SerializationException;
-import org.apache.kafka.common.serialization.Deserializer;
+import org.apache.kafka.common.serialization.Serializer;
 
 import java.util.Map;
 
-public class JsonPojoDeserializer<T> implements Deserializer<T> {
+public class JsonPojoSerializer<T> implements Serializer<T> {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private Class<T> clazz;
-
-    public JsonPojoDeserializer(Class<T> clazz) {
-        this.clazz = clazz;
-    }
 
     @SuppressWarnings("unchecked")
     @Override
@@ -22,22 +18,18 @@ public class JsonPojoDeserializer<T> implements Deserializer<T> {
     }
 
     @Override
-    public T deserialize(String topic, byte[] bytes) {
-        if (bytes == null)
+    public byte[] serialize(String topic, T data) {
+        if (data == null)
             return null;
 
-        T data;
         try {
-            data = objectMapper.readValue(bytes, clazz);
+            return objectMapper.writeValueAsBytes(data);
         } catch (Exception e) {
-            throw new SerializationException(e);
+            throw new SerializationException("Error serializing JSON message", e);
         }
-
-        return data;
     }
 
     @Override
     public void close() {
-
     }
 }

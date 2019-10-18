@@ -1,4 +1,4 @@
-package kafka;
+package org.thingsboard.kafka;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
