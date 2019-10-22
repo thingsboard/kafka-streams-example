@@ -56,7 +56,7 @@ public class SolarConsumer {
 
     private static final JoinWindows JOIN_WINDOWS = JoinWindows.of(DURATION);
 
-    private static final StreamsBuilder builder = new StreamsBuilder();
+    private static final StreamsBuilder BUILDER = new StreamsBuilder();
 
     // serde - Serializer/Deserializer
     // for custom classes should be custom Serializer/Deserializer
@@ -95,7 +95,7 @@ public class SolarConsumer {
 
         // source stream from kafka
         final KStream<SolarModuleKey, SolarModuleData> source =
-                builder
+                BUILDER
                         .stream(IN_TOPIC, Consumed.with(STRING_SERDE, SOLAR_MODULE_DATA_SERDE))
                         .map((k, v) -> KeyValue.pair(new SolarModuleKey(v.getPanel(), v.getName()), v));
 
@@ -188,7 +188,7 @@ public class SolarConsumer {
                 .to(OUT_TOPIC, Produced.valueSerde(SOLAR_MODULE_AGGREGATOR_JOINER_SERDE));
 
         log.info("STARTING");
-        final KafkaStreams streams = new KafkaStreams(builder.build(), getProperties());
+        final KafkaStreams streams = new KafkaStreams(BUILDER.build(), getProperties());
         streams.cleanUp();
         streams.start();
         log.info("STARTED");
