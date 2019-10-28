@@ -44,13 +44,13 @@ import java.util.Properties;
 @Slf4j
 public class SolarConsumer {
 
-    private static final String IN_TOPIC = "my-topic";
+    private static final String IN_TOPIC = "solar-module-raw";
 
     private static final TopicNameExtractor<String, SolarModuleAggregatorJoiner> OUT_TOPIC =
-            new StaticTopicNameExtractor<>("my-topic-output");
+            new StaticTopicNameExtractor<>("solar-module-anomalies");
 
     // Time for windowing
-    private static final Duration DURATION = Duration.ofSeconds(10);
+    private static final Duration DURATION = Duration.ofSeconds(30);
 
     private static final TimeWindows TIME_WINDOWS = TimeWindows.of(DURATION);
 
@@ -202,7 +202,7 @@ public class SolarConsumer {
 
     private static Properties getProperties() {
         final Properties props = new Properties();
-        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "streams");
+        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "solar-module-anomalies");
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
         props.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
