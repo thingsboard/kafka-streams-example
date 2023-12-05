@@ -27,7 +27,7 @@
         <java.version>1.8</java.version>
         <lommbok.version>1.18.10</lommbok.version>
         <slf4j.version>1.7.7</slf4j.version>
-        <logback.version>1.2.3</logback.version>
+        <logback.version>1.2.13</logback.version>
     </properties>
 
     <build>
