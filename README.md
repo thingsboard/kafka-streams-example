@@ -1,4 +1,4 @@
-### Kafka Streams Example
+# Kafka Streams Example
 
 
 ThingsBoard rule engine supports basic analysis of incoming telemetry data, for example, threshold crossing.
