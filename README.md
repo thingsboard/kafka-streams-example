@@ -1,5 +1,5 @@
-* TOC
-{:toc}
+### Kafka Streams Example
+
 
 ThingsBoard rule engine supports basic analysis of incoming telemetry data, for example, threshold crossing.
 The idea behind rule engine is to provide functionality to route data from IoT Devices to different plugins, based on device attributes or the data itself.   
@@ -20,7 +20,7 @@ ThingsBoard is used to collect, store and visualize anomaly telemetry from these
 
 We calculated anomaly by comparing value produced from a solar module with the average valued produced by all modules of the same panel and standard **deviation** of the same value.
 
-![image](/images/user-guide/integrations/kafka/deviation.png)
+![image](/images/deviation.png)
 
 We will analyze real-time data from multiple devices using [Kafka Streams](https://kafka.apache.org/documentation/streams/) job with 30 seconds window (configurable).
 
@@ -382,8 +382,3 @@ Explore other [guides](/docs/{{docsPrefix}}guides/) to learn mode.
 
 Although the Debug mode is very useful for development and troubleshooting, leaving it enabled in production mode may tremendously increase the disk space, used by the database, because all the debugging data is stored there. 
 It is highly recommended to turn the Debug mode off when done debugging. 
-
-
-## Next steps
-
-{% assign currentGuide = "ConnectYourDevice" %}{% include templates/multi-project-guides-banner.md %}
